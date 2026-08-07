@@ -9,13 +9,15 @@ A custom "third-party" plugin for the [Dracula tmux](https://github.com/dracula/
 - Aggregate container RAM usage (🧠)
 - Aggregate Docker disk usage (💾)
 
-The segment stays empty when there's nothing to report — no Docker installed, daemon not running, no containers, no compose project in the active pane.
+The segment stays empty when there's nothing to report — no Docker installed, daemon not running, no containers, no compose project in the
+active pane.
 
 ## Prerequisites
 
 - **tmux** (>= 3.0 recommended)
 - **[TPM](https://github.com/tmux-plugins/tpm)** (Tmux Plugin Manager), or another way of installing `dracula/tmux`
-- **[dracula/tmux](https://github.com/dracula/tmux)** cloned into your tmux plugin directory (typically `~/.tmux/plugins/tmux` when using TPM — TPM names the clone dir after the repo, not the org)
+- **[dracula/tmux](https://github.com/dracula/tmux)** cloned into your tmux plugin directory (typically `~/.tmux/plugins/tmux` when using
+  TPM — TPM names the clone dir after the repo, not the org)
 - **Docker** (`docker` CLI + daemon reachable); **Docker Compose** (v2, the `docker compose` subcommand is required)
 
 ## Installation
@@ -36,7 +38,8 @@ The segment stays empty when there's nothing to report — no Docker installed, 
    chmod +x ~/.tmux/plugins/tmux/scripts/docker.sh
    ```
 
-   The script **must** be executable — `dracula.sh` only runs it if `[[ -x ... ]]`; otherwise the status bar shows `"docker.sh not found!"` in red.
+   The script **must** be executable — `dracula.sh` only runs it if `[[ -x ... ]]`; otherwise the status bar shows `"docker.sh not found!"`
+   in red.
 
 3. Enable it as a custom plugin in `~/.tmux.conf`, alongside whatever other Dracula plugins you use:
 
@@ -54,17 +57,22 @@ You should now see the Docker segment in your status bar whenever there's someth
 
 ## Configuration
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `@dracula-docker-show-compose` | `"true"` | Show the compose-project indicator (`● up`, `○ down`, `◐ 3/5`). |
-| `@dracula-docker-cache-ttl` | `"300"` | Cache TTL (seconds) for container count, RAM, and disk usage. |
+| Option                             | Default  | Description                                                     |
+|------------------------------------|----------|-----------------------------------------------------------------|
+| `@dracula-docker-show-compose`     | `"true"` | Show the compose-project indicator (`● up`, `○ down`, `◐ 3/5`). |
+| `@dracula-docker-cache-ttl`        | `"300"`  | Cache TTL (seconds) for container count, RAM, and disk usage.   |
+| `@dracula-docker-label-containers` | `"🐳"`   | Label for the running containers count.                         |
+| `@dracula-docker-label-memory`     | `"🧠"`   | Label for aggregate RAM usage.                                  |
+| `@dracula-docker-label-disk`       | `"💾"`   | Label for aggregate disk usage.                                 |
 
 Everything else is fixed in `docker.sh`.
 
 ## How it works
 
-- The compose-project indicator inspects the **active pane's** current directory for a `docker-compose.yml`/`.yaml` or `compose.yml`/`.yaml` file, and isn't cached — it's cheap to query and needs to reflect `cd`-ing between panes immediately.
-- Container count, RAM, and disk usage come from `docker stats` / `docker system df`, which are slow (one daemon round-trip per container), so they're cached (5 minutes by default, see `@dracula-docker-cache-ttl` above) under `/tmp/dracula-docker-cache-${USER}`.
+- The compose-project indicator inspects the **active pane's** current directory for a `docker-compose.yml`/`.yaml` or `compose.yml`/`.yaml`
+  file, and isn't cached — it's cheap to query and needs to reflect `cd`-ing between panes immediately.
+- Container count, RAM, and disk usage come from `docker stats` / `docker system df`, which are slow (one daemon round-trip per container),
+  so they're cached (5 minutes by default, see `@dracula-docker-cache-ttl` above) under `/tmp/dracula-docker-cache-${USER}`.
 - Segments refresh on tmux's normal status-bar interval (`@dracula-refresh-rate`, default 5s).
 
 ## Testing changes locally

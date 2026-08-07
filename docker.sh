@@ -117,19 +117,24 @@ getDockerStats() {
 printSegment() {
   local running_containers="$1" compose_indicator="$2" memory_usage_gb="$3" disk_usage_gb="$4"
 
+  local containers_label memory_label disk_label
+  containers_label="$(get_tmux_option "@dracula-docker-label-containers" "🐳")"
+  memory_label="$(get_tmux_option "@dracula-docker-label-memory" "🧠")"
+  disk_label="$(get_tmux_option "@dracula-docker-label-disk" "💾")"
+
   local parts=()
   if [[ "$running_containers" -gt 0 ]]; then
-    parts+=("🐳 ${running_containers}")
+    parts+=("${containers_label} ${running_containers}")
   elif [[ -n "$compose_indicator" ]]; then
-    parts+=("🐳")
+    parts+=("$containers_label")
   fi
   [[ -n "$compose_indicator" ]] && parts+=("$compose_indicator")
-  isPositive "$memory_usage_gb" && parts+=("🧠 ${memory_usage_gb}GB")
+  isPositive "$memory_usage_gb" && parts+=("${memory_label} ${memory_usage_gb}GB")
 
   # Disk usage isn't actionable on its own (cached images/volumes persist
   # regardless of what's running) -- only show it alongside 🐳/🧠/compose state.
   if [[ ${#parts[@]} -gt 0 ]]; then
-    isPositive "$disk_usage_gb" && parts+=("💾 ${disk_usage_gb}GB")
+    isPositive "$disk_usage_gb" && parts+=("${disk_label} ${disk_usage_gb}GB")
   fi
 
   [[ ${#parts[@]} -eq 0 ]] && exit 0
