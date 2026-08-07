@@ -137,7 +137,11 @@ printSegment() {
   local running_containers="$1" compose_indicator="$2" memory_usage_gb="$3" disk_usage_gb="$4"
 
   local parts=()
-  [[ "$running_containers" -gt 0 ]] && parts+=("🐳 ${running_containers}")
+  if [[ "$running_containers" -gt 0 ]]; then
+    parts+=("🐳 ${running_containers}")
+  elif [[ -n "$compose_indicator" ]]; then
+    parts+=("🐳")
+  fi
   [[ -n "$compose_indicator" ]] && parts+=("$compose_indicator")
   isPositive "$memory_usage_gb" && parts+=("🧠 ${memory_usage_gb}GB")
 
