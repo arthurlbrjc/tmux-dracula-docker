@@ -14,14 +14,7 @@ command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || exit 0
 # like the stats below: `compose ps` only touches one project, so it's
 # cheap, and caching it would show stale state after `cd`-ing between panes.
 getActivePaneDir() {
-  nextone="false"
-  ret=""
-  for i in $(tmux list-panes -F "#{pane_active} #{pane_current_path}"); do
-    [ "$i" == "1" ] && nextone="true" && continue
-    [ "$i" == "0" ] && nextone="false"
-    [ "$nextone" == "true" ] && ret+="$i "
-  done
-  echo "${ret% }"
+  tmux display-message -p "#{pane_current_path}"
 }
 
 findComposeFile() {
