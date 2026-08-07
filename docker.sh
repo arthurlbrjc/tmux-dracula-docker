@@ -4,6 +4,8 @@
 # disk usage. Hides itself (no output) when Docker isn't installed, the
 # daemon isn't reachable, or there's simply nothing to report.
 
+export LC_ALL=en_US.UTF-8
+
 current_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source "$current_dir/utils.sh"
 
@@ -25,6 +27,23 @@ findComposeFile() {
   return 1
 }
 
+# Resolve the reset color the same way dracula.sh does: start from its
+# default palette, apply the user's @dracula-colors override (if any) with
+# the same eval mechanism, then look up @dracula-custom-plugin-colors' fg
+# (default "dark_gray") by name. A hardcoded #282a36 reset would fight a
+# themed @dracula-colors override (Catppuccin/Gruvbox/etc).
+getResetFg() {
+  local white="#f8f8f2" gray="#44475a" dark_gray="#282a36" light_purple="#bd93f9"
+  local dark_purple="#6272a4" cyan="#8be9fd" green="#50fa7b" orange="#ffb86c"
+  local red="#ff5555" purple="#b166cc" pink="#ff79c6" yellow="#f1fa8c"
+  local user_colors
+  user_colors="$(get_tmux_option "@dracula-colors" "")"
+  [[ -n "$user_colors" ]] && eval "$user_colors"
+  local plugin_colors
+  IFS=' ' read -r -a plugin_colors <<<"$(get_tmux_option "@dracula-custom-plugin-colors" "cyan dark_gray")"
+  echo "${!plugin_colors[1]}"
+}
+
 compose_indicator=""
 if docker compose version >/dev/null 2>&1; then
   pane_dir="$(getActivePaneDir)"
@@ -36,14 +55,14 @@ if docker compose version >/dev/null 2>&1; then
     running_count="$(docker compose -f "$compose_file" ps --services --filter status=running 2>/dev/null | grep -c .)"
 
     if [[ "$service_count" -gt 0 ]]; then
-      # Dracula palette fg colors; reset matches @dracula-custom-plugin-colors'
-      # fg (dark_gray, #282a36) so text returns to the segment's normal color.
+      reset_fg="$(getResetFg)"
+
       if [[ "$running_count" -eq 0 ]]; then
-        compose_indicator="#[fg=#ff5555]○ down#[fg=#282a36]"
+        compose_indicator="#[fg=#ff5555]○ down#[fg=${reset_fg}]"
       elif [[ "$running_count" -eq "$service_count" ]]; then
-        compose_indicator="#[fg=#50fa7b]● up#[fg=#282a36]"
+        compose_indicator="#[fg=#50fa7b]● up#[fg=${reset_fg}]"
       else
-        compose_indicator="#[fg=#ffb86c]◐ ${running_count}/${service_count}#[fg=#282a36]"
+        compose_indicator="#[fg=#ffb86c]◐ ${running_count}/${service_count}#[fg=${reset_fg}]"
       fi
     fi
   fi
@@ -95,12 +114,12 @@ else
 fi
 
 parts=()
-[[ -n "$compose_indicator" ]] && parts+=("$compose_indicator")
 [[ "$running_containers" -gt 0 ]] && parts+=("🐳 ${running_containers}")
+[[ -n "$compose_indicator" ]] && parts+=("$compose_indicator")
 awk -v v="$memory_usage_gb" 'BEGIN{exit !(v>0)}' && parts+=("🧠 ${memory_usage_gb}GB")
 
 # Disk usage isn't actionable on its own (cached images/volumes persist
-# regardless of what's running) -- only show it alongside 🐳/🧠.
+# regardless of what's running) -- only show it alongside 🐳/🧠/compose state.
 if [[ ${#parts[@]} -gt 0 ]]; then
   awk -v v="$disk_usage_gb" 'BEGIN{exit !(v>0)}' && parts+=("💾 ${disk_usage_gb}GB")
 fi
