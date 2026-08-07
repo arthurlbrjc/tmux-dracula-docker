@@ -57,13 +57,15 @@ You should now see the Docker segment in your status bar whenever there's someth
 
 ## Configuration
 
-| Option                             | Default  | Description                                                     |
-|------------------------------------|----------|-----------------------------------------------------------------|
-| `@dracula-docker-show-compose`     | `"true"` | Show the compose-project indicator (`● up`, `○ down`, `◐ 3/5`). |
-| `@dracula-docker-cache-ttl`        | `"300"`  | Cache TTL (seconds) for container count, RAM, and disk usage.   |
-| `@dracula-docker-label-containers` | `"🐳"`   | Label for the running containers count.                         |
-| `@dracula-docker-label-memory`     | `"🧠"`   | Label for aggregate RAM usage.                                  |
-| `@dracula-docker-label-disk`       | `"💾"`   | Label for aggregate disk usage.                                 |
+| Option                             | Default                            | Description                                                                 |
+|------------------------------------|------------------------------------|-----------------------------------------------------------------------------|
+| `@dracula-docker-show-compose`     | `"true"`                           | Show the compose-project indicator (`● up`, `○ down`, `◐ 3/5`).             |
+| `@dracula-docker-cache-ttl`        | `"300"`                            | Cache TTL (seconds) for container count, RAM, and disk usage.               |
+| `@dracula-docker-label-containers` | `"📦"`                             | Icon for the running-containers count, shown only when it isn't leading.    |
+| `@dracula-docker-label-memory`     | `"🧠"`                             | Label for aggregate RAM usage.                                              |
+| `@dracula-docker-label-disk`       | `"💾"`                             | Label for aggregate disk usage.                                             |
+| `@dracula-docker-main-label`       | `"🐳"`                             | Icon that always leads the segment, identifying it as Docker's.             |
+| `@dracula-docker-order`            | `"containers compose memory disk"` | Which of `containers`/`compose`/`memory`/`disk` to show, and in what order. |
 
 Everything else is fixed in `docker.sh`.
 
@@ -71,8 +73,14 @@ Everything else is fixed in `docker.sh`.
 
 - The compose-project indicator inspects the **active pane's** current directory for a `docker-compose.yml`/`.yaml` or `compose.yml`/`.yaml`
   file, and isn't cached — it's cheap to query and needs to reflect `cd`-ing between panes immediately.
-- Container count, RAM, and disk usage come from `docker stats` / `docker system df`, which are slow (one daemon round-trip per container),
-  so they're cached (5 minutes by default, see `@dracula-docker-cache-ttl` above) under `/tmp/dracula-docker-cache-${USER}`.
+- Container count, RAM, and disk usage come from `docker stats` / `docker system df`, which are slow (one daemon round-trip per container) —
+  so they're cached under `/tmp/dracula-docker-cache-${USER}` for `@dracula-docker-cache-ttl` seconds (5 minutes by default).
+- A stat left out of `@dracula-docker-order` isn't computed at all, not just hidden.
+- RAM and disk usage are shown in MB below 1GB, GB above — a real but small amount is never rounded down to an invisible `0.0`. Disk usage
+  is only shown alongside another active stat (containers, memory, or compose) — cached images/volumes persist regardless of what's running,
+  so it isn't shown on its own.
+- `@dracula-docker-main-label` always leads the segment once there's anything to show; `@dracula-docker-label-containers` only decorates the
+  running-containers count when something else already leads — right after the main label, a bare number speaks for itself.
 - Segments refresh on tmux's normal status-bar interval (`@dracula-refresh-rate`, default 5s).
 
 ## Testing changes locally
