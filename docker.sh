@@ -13,12 +13,21 @@ main() {
   command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || exit 0
 
   local compose_indicator
-  compose_indicator="$(getComposeIndicator)"
+  if isComposeIndicatorEnabled; then
+    compose_indicator="$(getComposeIndicator)"
+  fi
 
   local running_containers memory_usage_gb disk_usage_gb
   read -r running_containers memory_usage_gb disk_usage_gb <<<"$(getDockerStats)"
 
   printSegment "$running_containers" "$compose_indicator" "$memory_usage_gb" "$disk_usage_gb"
+}
+
+# Lets users opt out of the compose-project indicator, e.g. if they don't
+# use docker-compose or don't want a per-pane `docker compose` query on
+# every status-bar refresh.
+isComposeIndicatorEnabled() {
+  [[ "$(get_tmux_option "@dracula-docker-show-compose" "true")" == "true" ]]
 }
 
 # Report whether the active pane's directory is a docker-compose project,
@@ -104,6 +113,32 @@ getDockerStats() {
   echo "$running_containers $memory_usage_gb $disk_usage_gb"
 }
 
+printSegment() {
+  local running_containers="$1" compose_indicator="$2" memory_usage_gb="$3" disk_usage_gb="$4"
+
+  local parts=()
+  if [[ "$running_containers" -gt 0 ]]; then
+    parts+=("🐳 ${running_containers}")
+  elif [[ -n "$compose_indicator" ]]; then
+    parts+=("🐳")
+  fi
+  [[ -n "$compose_indicator" ]] && parts+=("$compose_indicator")
+  isPositive "$memory_usage_gb" && parts+=("🧠 ${memory_usage_gb}GB")
+
+  # Disk usage isn't actionable on its own (cached images/volumes persist
+  # regardless of what's running) -- only show it alongside 🐳/🧠/compose state.
+  if [[ ${#parts[@]} -gt 0 ]]; then
+    isPositive "$disk_usage_gb" && parts+=("💾 ${disk_usage_gb}GB")
+  fi
+
+  [[ ${#parts[@]} -eq 0 ]] && exit 0
+
+  local output="${parts[0]}"
+  for part in "${parts[@]:1}"; do
+    output+=" · ${part}"
+  done
+  echo "$output"
+}
 
 getActivePaneDir() {
   tmux display-message -p "#{pane_current_path}"
@@ -132,32 +167,6 @@ getResetFg() {
   local plugin_colors
   IFS=' ' read -r -a plugin_colors <<<"$(get_tmux_option "@dracula-custom-plugin-colors" "cyan dark_gray")"
   echo "${!plugin_colors[1]}"
-}
-printSegment() {
-  local running_containers="$1" compose_indicator="$2" memory_usage_gb="$3" disk_usage_gb="$4"
-
-  local parts=()
-  if [[ "$running_containers" -gt 0 ]]; then
-    parts+=("🐳 ${running_containers}")
-  elif [[ -n "$compose_indicator" ]]; then
-    parts+=("🐳")
-  fi
-  [[ -n "$compose_indicator" ]] && parts+=("$compose_indicator")
-  isPositive "$memory_usage_gb" && parts+=("🧠 ${memory_usage_gb}GB")
-
-  # Disk usage isn't actionable on its own (cached images/volumes persist
-  # regardless of what's running) -- only show it alongside 🐳/🧠/compose state.
-  if [[ ${#parts[@]} -gt 0 ]]; then
-    isPositive "$disk_usage_gb" && parts+=("💾 ${disk_usage_gb}GB")
-  fi
-
-  [[ ${#parts[@]} -eq 0 ]] && exit 0
-
-  local output="${parts[0]}"
-  for part in "${parts[@]:1}"; do
-    output+=" · ${part}"
-  done
-  echo "$output"
 }
 
 isPositive() {

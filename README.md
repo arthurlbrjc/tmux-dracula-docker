@@ -60,6 +60,12 @@ The segment's colors are controlled by Dracula's shared custom-plugin option —
 set -g @dracula-custom-plugin-colors "cyan dark_gray"
 ```
 
+The docker-compose project indicator (`● up`, `○ down`, `◐ 3/5`) is on by default. Opt out if you don't use compose, or don't want a `docker compose` query running against the active pane on every status-bar refresh:
+
+```tmux
+set -g @dracula-docker-show-compose "false"
+```
+
 Everything else (compose state colors, icons, cache TTL) is fixed in `docker.sh`.
 
 ## How it works
