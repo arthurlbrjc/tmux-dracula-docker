@@ -26,7 +26,7 @@ findComposeFile() {
 }
 
 compose_indicator=""
-if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+if docker compose version >/dev/null 2>&1; then
   pane_dir="$(getActivePaneDir)"
   if [[ -n "$pane_dir" ]] && compose_file="$(findComposeFile "$pane_dir")"; then
     # grep -c . (not wc -l): compose prints a single blank line, not zero
