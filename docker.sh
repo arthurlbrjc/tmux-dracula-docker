@@ -64,7 +64,7 @@ cache_dir="/tmp/dracula-docker-cache-${USER}"
 mkdir -p "$cache_dir" 2>/dev/null
 cache_file="$cache_dir/stats"
 now="$(date +%s)"
-cache_mtime="$(stat -c %Y "$cache_file" 2>/dev/null || echo 0)"
+cache_mtime="$(stat -c %Y "$cache_file" 2>/dev/null || stat -f %m "$cache_file" 2>/dev/null || echo 0)"
 
 if [[ -f "$cache_file" && $((now - cache_mtime)) -lt "$cache_ttl" ]]; then
   read -r running_containers memory_usage_gb disk_usage_gb <"$cache_file"
