@@ -54,24 +54,17 @@ You should now see the Docker segment in your status bar whenever there's someth
 
 ## Configuration
 
-The segment's colors are controlled by Dracula's shared custom-plugin option — there's no per-plugin `@dracula-docker-colors`:
+| Option | Default | Description |
+| --- | --- | --- |
+| `@dracula-docker-show-compose` | `"true"` | Show the compose-project indicator (`● up`, `○ down`, `◐ 3/5`). |
+| `@dracula-docker-cache-ttl` | `"300"` | Cache TTL (seconds) for container count, RAM, and disk usage. |
 
-```tmux
-set -g @dracula-custom-plugin-colors "cyan dark_gray"
-```
-
-The docker-compose project indicator (`● up`, `○ down`, `◐ 3/5`) is on by default. Opt out if you don't use compose, or don't want a `docker compose` query running against the active pane on every status-bar refresh:
-
-```tmux
-set -g @dracula-docker-show-compose "false"
-```
-
-Everything else (compose state colors, icons, cache TTL) is fixed in `docker.sh`.
+Everything else is fixed in `docker.sh`.
 
 ## How it works
 
 - The compose-project indicator inspects the **active pane's** current directory for a `docker-compose.yml`/`.yaml` or `compose.yml`/`.yaml` file, and isn't cached — it's cheap to query and needs to reflect `cd`-ing between panes immediately.
-- Container count, RAM, and disk usage come from `docker stats` / `docker system df`, which are slow (one daemon round-trip per container), so they're cached for 5 minutes under `/tmp/dracula-docker-cache-${USER}`.
+- Container count, RAM, and disk usage come from `docker stats` / `docker system df`, which are slow (one daemon round-trip per container), so they're cached (5 minutes by default, see `@dracula-docker-cache-ttl` above) under `/tmp/dracula-docker-cache-${USER}`.
 - Segments refresh on tmux's normal status-bar interval (`@dracula-refresh-rate`, default 5s).
 
 ## Testing changes locally

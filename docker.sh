@@ -66,7 +66,8 @@ getComposeIndicator() {
 # daemon round-trip per container for stats), so cache them together
 # for 5 minutes. Prints "running_containers memory_usage_gb disk_usage_gb".
 getDockerStats() {
-  local cache_ttl="300"
+  local cache_ttl
+  cache_ttl="$(get_tmux_option "@dracula-docker-cache-ttl" "300")"
   local cache_dir="/tmp/dracula-docker-cache-${USER}"
   mkdir -p "$cache_dir" 2>/dev/null
   local cache_file="$cache_dir/stats"
