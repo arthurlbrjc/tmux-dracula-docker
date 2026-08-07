@@ -9,78 +9,68 @@ export LC_ALL=en_US.UTF-8
 current_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source "$current_dir/utils.sh"
 
-command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || exit 0
+main() {
+  command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || exit 0
+
+  local compose_indicator
+  compose_indicator="$(getComposeIndicator)"
+
+  local running_containers memory_usage_gb disk_usage_gb
+  read -r running_containers memory_usage_gb disk_usage_gb <<<"$(getDockerStats)"
+
+  printSegment "$running_containers" "$compose_indicator" "$memory_usage_gb" "$disk_usage_gb"
+}
 
 # Report whether the active pane's directory is a docker-compose project,
 # and if so whether it's fully up, fully down, or partially up. Not cached
 # like the stats below: `compose ps` only touches one project, so it's
 # cheap, and caching it would show stale state after `cd`-ing between panes.
-getActivePaneDir() {
-  tmux display-message -p "#{pane_current_path}"
-}
+getComposeIndicator() {
+  docker compose version >/dev/null 2>&1 || return 0
 
-findComposeFile() {
-  local dir="$1"
-  for name in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
-    [[ -f "$dir/$name" ]] && echo "$dir/$name" && return 0
-  done
-  return 1
-}
-
-# Resolve the reset color the same way dracula.sh does: start from its
-# default palette, apply the user's @dracula-colors override (if any) with
-# the same eval mechanism, then look up @dracula-custom-plugin-colors' fg
-# (default "dark_gray") by name. A hardcoded #282a36 reset would fight a
-# themed @dracula-colors override (Catppuccin/Gruvbox/etc).
-getResetFg() {
-  local white="#f8f8f2" gray="#44475a" dark_gray="#282a36" light_purple="#bd93f9"
-  local dark_purple="#6272a4" cyan="#8be9fd" green="#50fa7b" orange="#ffb86c"
-  local red="#ff5555" purple="#b166cc" pink="#ff79c6" yellow="#f1fa8c"
-  local user_colors
-  user_colors="$(get_tmux_option "@dracula-colors" "")"
-  [[ -n "$user_colors" ]] && eval "$user_colors"
-  local plugin_colors
-  IFS=' ' read -r -a plugin_colors <<<"$(get_tmux_option "@dracula-custom-plugin-colors" "cyan dark_gray")"
-  echo "${!plugin_colors[1]}"
-}
-
-compose_indicator=""
-if docker compose version >/dev/null 2>&1; then
+  local pane_dir compose_file
   pane_dir="$(getActivePaneDir)"
-  if [[ -n "$pane_dir" ]] && compose_file="$(findComposeFile "$pane_dir")"; then
-    # grep -c . (not wc -l): compose prints a single blank line, not zero
-    # bytes, when a --services query matches nothing, which wc -l counts
-    # as 1 line.
-    service_count="$(docker compose -f "$compose_file" config --services 2>/dev/null | grep -c .)"
-    running_count="$(docker compose -f "$compose_file" ps --services --filter status=running 2>/dev/null | grep -c .)"
+  [[ -n "$pane_dir" ]] || return 0
+  compose_file="$(findComposeFile "$pane_dir")" || return 0
 
-    if [[ "$service_count" -gt 0 ]]; then
-      reset_fg="$(getResetFg)"
+  # grep -c . (not wc -l): compose prints a single blank line, not zero
+  # bytes, when a --services query matches nothing, which wc -l counts
+  # as 1 line.
+  local service_count running_count
+  service_count="$(docker compose -f "$compose_file" config --services 2>/dev/null | grep -c .)"
+  running_count="$(docker compose -f "$compose_file" ps --services --filter status=running 2>/dev/null | grep -c .)"
+  [[ "$service_count" -gt 0 ]] || return 0
 
-      if [[ "$running_count" -eq 0 ]]; then
-        compose_indicator="#[fg=#ff5555]○ down#[fg=${reset_fg}]"
-      elif [[ "$running_count" -eq "$service_count" ]]; then
-        compose_indicator="#[fg=#50fa7b]● up#[fg=${reset_fg}]"
-      else
-        compose_indicator="#[fg=#ffb86c]◐ ${running_count}/${service_count}#[fg=${reset_fg}]"
-      fi
-    fi
+  local reset_fg
+  reset_fg="$(getResetFg)"
+
+  if [[ "$running_count" -eq 0 ]]; then
+    echo "#[fg=#ff5555]○ down#[fg=${reset_fg}]"
+  elif [[ "$running_count" -eq "$service_count" ]]; then
+    echo "#[fg=#50fa7b]● up#[fg=${reset_fg}]"
+  else
+    echo "#[fg=#ffb86c]◐ ${running_count}/${service_count}#[fg=${reset_fg}]"
   fi
-fi
+}
 
 # `docker stats` and `docker system df` are both slow (100s of ms, one
 # daemon round-trip per container for stats), so cache them together
-# for 5 minutes.
-cache_ttl="300"
-cache_dir="/tmp/dracula-docker-cache-${USER}"
-mkdir -p "$cache_dir" 2>/dev/null
-cache_file="$cache_dir/stats"
-now="$(date +%s)"
-cache_mtime="$(stat -c %Y "$cache_file" 2>/dev/null || stat -f %m "$cache_file" 2>/dev/null || echo 0)"
+# for 5 minutes. Prints "running_containers memory_usage_gb disk_usage_gb".
+getDockerStats() {
+  local cache_ttl="300"
+  local cache_dir="/tmp/dracula-docker-cache-${USER}"
+  mkdir -p "$cache_dir" 2>/dev/null
+  local cache_file="$cache_dir/stats"
+  local now cache_mtime
+  now="$(date +%s)"
+  cache_mtime="$(stat -c %Y "$cache_file" 2>/dev/null || stat -f %m "$cache_file" 2>/dev/null || echo 0)"
 
-if [[ -f "$cache_file" && $((now - cache_mtime)) -lt "$cache_ttl" ]]; then
-  read -r running_containers memory_usage_gb disk_usage_gb <"$cache_file"
-else
+  if [[ -f "$cache_file" && $((now - cache_mtime)) -lt "$cache_ttl" ]]; then
+    cat "$cache_file"
+    return 0
+  fi
+
+  local running_containers memory_usage_gb disk_usage_gb
   running_containers="$(docker ps -q | wc -l | tr -d ' ')"
 
   memory_usage_gb="$(docker stats --no-stream --format "{{.MemUsage}}" 2>/dev/null | awk -F'/' '{
@@ -111,23 +101,63 @@ else
   } END {printf "%.1f", sum}')"
 
   echo "$running_containers $memory_usage_gb $disk_usage_gb" >"$cache_file"
-fi
+  echo "$running_containers $memory_usage_gb $disk_usage_gb"
+}
 
-parts=()
-[[ "$running_containers" -gt 0 ]] && parts+=("🐳 ${running_containers}")
-[[ -n "$compose_indicator" ]] && parts+=("$compose_indicator")
-awk -v v="$memory_usage_gb" 'BEGIN{exit !(v>0)}' && parts+=("🧠 ${memory_usage_gb}GB")
 
-# Disk usage isn't actionable on its own (cached images/volumes persist
-# regardless of what's running) -- only show it alongside 🐳/🧠/compose state.
-if [[ ${#parts[@]} -gt 0 ]]; then
-  awk -v v="$disk_usage_gb" 'BEGIN{exit !(v>0)}' && parts+=("💾 ${disk_usage_gb}GB")
-fi
+getActivePaneDir() {
+  tmux display-message -p "#{pane_current_path}"
+}
 
-[[ ${#parts[@]} -eq 0 ]] && exit 0
+findComposeFile() {
+  local dir="$1"
+  for name in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
+    [[ -f "$dir/$name" ]] && echo "$dir/$name" && return 0
+  done
+  return 1
+}
 
-output="${parts[0]}"
-for part in "${parts[@]:1}"; do
-  output+=" · ${part}"
-done
-echo "$output"
+# Resolve the reset color the same way dracula.sh does: start from its
+# default palette, apply the user's @dracula-colors override (if any) with
+# the same eval mechanism, then look up @dracula-custom-plugin-colors' fg
+# (default "dark_gray") by name. A hardcoded #282a36 reset would fight a
+# themed @dracula-colors override (Catppuccin/Gruvbox/etc).
+getResetFg() {
+  local white="#f8f8f2" gray="#44475a" dark_gray="#282a36" light_purple="#bd93f9"
+  local dark_purple="#6272a4" cyan="#8be9fd" green="#50fa7b" orange="#ffb86c"
+  local red="#ff5555" purple="#b166cc" pink="#ff79c6" yellow="#f1fa8c"
+  local user_colors
+  user_colors="$(get_tmux_option "@dracula-colors" "")"
+  [[ -n "$user_colors" ]] && eval "$user_colors"
+  local plugin_colors
+  IFS=' ' read -r -a plugin_colors <<<"$(get_tmux_option "@dracula-custom-plugin-colors" "cyan dark_gray")"
+  echo "${!plugin_colors[1]}"
+}
+printSegment() {
+  local running_containers="$1" compose_indicator="$2" memory_usage_gb="$3" disk_usage_gb="$4"
+
+  local parts=()
+  [[ "$running_containers" -gt 0 ]] && parts+=("🐳 ${running_containers}")
+  [[ -n "$compose_indicator" ]] && parts+=("$compose_indicator")
+  isPositive "$memory_usage_gb" && parts+=("🧠 ${memory_usage_gb}GB")
+
+  # Disk usage isn't actionable on its own (cached images/volumes persist
+  # regardless of what's running) -- only show it alongside 🐳/🧠/compose state.
+  if [[ ${#parts[@]} -gt 0 ]]; then
+    isPositive "$disk_usage_gb" && parts+=("💾 ${disk_usage_gb}GB")
+  fi
+
+  [[ ${#parts[@]} -eq 0 ]] && exit 0
+
+  local output="${parts[0]}"
+  for part in "${parts[@]:1}"; do
+    output+=" · ${part}"
+  done
+  echo "$output"
+}
+
+isPositive() {
+  awk -v v="$1" 'BEGIN{exit !(v>0)}'
+}
+
+main "$@"
